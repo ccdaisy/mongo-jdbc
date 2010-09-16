@@ -32,10 +32,12 @@ import net.sf.jsqlparser.statement.update.*;
 import net.sf.jsqlparser.statement.drop.*;
 
 import com.mongodb.*;
+import com.mongodb.jdbc.function.update.AbstractUpdateFunctionHandler;
+import com.mongodb.jdbc.function.update.UpdateFunctionMap;
 
 public class Executor {
 
-    static final boolean D = false;
+    static final boolean D = true;
 
     Executor( DB db , String sql )
         throws MongoSQLException {
@@ -46,12 +48,14 @@ public class Executor {
         if ( D ) System.out.println( sql );
     }
 
-    void setParams( List params ){
+    @SuppressWarnings("unchecked")
+	void setParams( List params ){
         _pos = 1;
         _params = params;
     }
 
-    DBCursor query()
+    @SuppressWarnings("unchecked")
+	DBCursor query()
         throws MongoSQLException {
         if ( ! ( _statement instanceof Select ) )
             throw new IllegalArgumentException( "not a query sql statement" );
@@ -127,7 +131,8 @@ public class Executor {
         throw new RuntimeException( "unknown write: " + _statement.getClass() );
     }
     
-    int insert( Insert in )
+    @SuppressWarnings("unchecked")
+	int insert( Insert in )
         throws MongoSQLException {
 
         if ( in.getColumns() == null )
@@ -154,25 +159,47 @@ public class Executor {
         return 1; // TODO - this is wrong
     }
 
-    int update( Update up )
+    @SuppressWarnings("unchecked")
+	int update( Update up )
         throws MongoSQLException {
         
         DBObject query = parseWhere( up.getWhere() );
         
-        BasicDBObject set = new BasicDBObject();
-        
+        BasicDBObject mod = new BasicDBObject();
         for ( int i=0; i<up.getColumns().size(); i++ ){
+            String criteria = "";
             String k = up.getColumns().get(i).toString();
             Expression v = (Expression)(up.getExpressions().get(i));
-            set.put( k.toString() , toConstant( v ) );
+            Object updateSet = toConstant(v);
+            Object params;
+            if(updateSet instanceof Function) {
+            	Function updateFunc = (Function)updateSet;
+            	criteria = updateFunc.getName().toLowerCase();
+            	params = new ArrayList<Object>();
+            	if(updateFunc.getParameters() != null){
+            		for(Object o:updateFunc.getParameters().getExpressions()){
+            			((List)params).add(toConstant((Expression)o));
+            		}
+            	}
+            }else if (updateSet == null) {
+            	criteria = "unset";
+            	params = 1;
+            }else {
+            	criteria = "set";
+            	params = updateSet;
+            }
+            AbstractUpdateFunctionHandler handler = 
+            	UpdateFunctionMap.handlerMap.get(criteria);
+            handler.handle(k, mod, params);
         }
 
-        DBObject mod = new BasicDBObject( "$set" , set );
 
         DBCollection coll = getCollection( up.getTable() );
-        coll.update( query , mod );
+        if( D ) System.out.println(mod);
+        coll.update( query , mod, true, true);
         return 1; // TODO
     }
+
 
     int drop( Drop d ){
         DBCollection c = _db.getCollection( d.getName() );

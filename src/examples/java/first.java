@@ -22,22 +22,22 @@ public class first {
         Statement stmt = c.createStatement();
         
         // drop old table
-        stmt.executeUpdate( "drop table people" );
+//        stmt.executeUpdate( "drop table people" );
 
         // insert some data
-        stmt.executeUpdate( "insert into people ( name , age ) values ( 'eliot' , 30 )" );
-        stmt.executeUpdate( "insert into people ( name , age ) values ( 'sara' , 2 )" );
+//        stmt.executeUpdate( "insert into people ( name , age ) values ( 'eliot' , 30 )" );
+//        stmt.executeUpdate( "insert into people ( name , age ) values ( 'sara' , 2 )" );
         stmt.executeUpdate( "insert into people ( name , age ) values ( 'jaime' , 28 )" );
         
 
         // print
-        print( "not sorted" , stmt.executeQuery( "select addname , age from people " ) );
-        print( "sorted by age" , stmt.executeQuery( "select name , age from people order by age " ) );
-        print( "sorted by age desc" , stmt.executeQuery( "select name , age from people order by age desc limit 2,1" ) );
+//        print( "not sorted" , stmt.executeQuery( "select addname , age from people " ) );
+//        print( "sorted by age" , stmt.executeQuery( "select name , age from people order by age " ) );
+//        print( "sorted by age desc" , stmt.executeQuery( "select name , age from people order by age desc limit 2,1" ) );
 
         // update
-        stmt.executeUpdate( "update people set age=addtoset(32) where name='jaime'" );
-        print( "sorted by age desc" , stmt.executeQuery( "select name , age from people order by age desc " ) );
+        stmt.executeUpdate( "update people set groupId=addtoset(1,2,3,4,5) where name='jaime'" );
+        print( "print" , stmt.executeQuery( "select * from people " ) );
 
     }
 
