@@ -25,6 +25,10 @@ import java.sql.Date;
 import java.util.*;
 import java.net.*;
 
+import net.sf.jsqlparser.statement.insert.Insert;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.update.Update;
+
 import com.mongodb.*;
 
 public class MongoPreparedStatement extends MongoStatement implements PreparedStatement {
@@ -56,7 +60,22 @@ public class MongoPreparedStatement extends MongoStatement implements PreparedSt
     // ----- actually do
     
     public boolean execute(){
-        throw new RuntimeException( "execute not done" );
+    	net.sf.jsqlparser.statement.Statement statement = this._exec._statement;
+    	if(statement instanceof Insert || statement instanceof Update){
+    		try {
+				this.executeUpdate();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			} finally {
+				return true;
+			}
+    	} else if (statement instanceof Select){
+   			this.executeQuery();
+			return true;
+    	} else {
+    		return true;
+    	}
+//        throw new RuntimeException( "execute not done" );
     }
     
     public ResultSet executeQuery(){

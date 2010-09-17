@@ -34,7 +34,8 @@ public class MongoConnection implements Connection {
     }
 
     public void clearWarnings(){
-        throw new RuntimeException( "should reset error" );
+    	
+//        throw new RuntimeException( "should reset error" );
     }
 
     // ---- state -----
@@ -142,7 +143,8 @@ public class MongoConnection implements Connection {
     }
     
     public DatabaseMetaData getMetaData(){
-        throw new RuntimeException( "not dont yet" );
+    	return null;
+//        throw new RuntimeException( "not dont yet" );
     }
 
     public boolean isValid(int timeout){

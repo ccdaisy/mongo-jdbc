@@ -113,7 +113,7 @@ public class MongoStatement implements Statement {
     }
 
     public int getUpdateCount(){
-        throw new RuntimeException( "getUpdateCount not done" );
+    	return 1;
     }
 
     public ResultSet getGeneratedKeys(){
