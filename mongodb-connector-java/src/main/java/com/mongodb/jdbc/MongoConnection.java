@@ -143,7 +143,7 @@ public class MongoConnection implements Connection {
     }
     
     public DatabaseMetaData getMetaData(){
-    	return null;
+    	return new MongoDatabaseMetaData();
 //        throw new RuntimeException( "not dont yet" );
     }
 

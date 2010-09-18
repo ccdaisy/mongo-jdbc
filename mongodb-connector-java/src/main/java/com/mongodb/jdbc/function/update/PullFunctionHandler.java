@@ -1,22 +1,23 @@
+//PullFunctionHandler.java
 package com.mongodb.jdbc.function.update;
 
 import java.util.List;
 
 import com.mongodb.DBObject;
 
-public class PushAllFunctionHandler extends AbstractUpdateFunctionHandler {
+public class PullFunctionHandler extends AbstractUpdateFunctionHandler {
 
 	@SuppressWarnings("unchecked")
 	@Override
 	public void handle(String column, DBObject updateSet, Object parameters) {
 		this.internalAddDBObject(updateSet, this.getName(), column,
-				((List) parameters).toArray());
+				((List) parameters).get(0));
 
 	}
 
 	@Override
 	public String getName() {
-		return "$pushAll";
+		return "$pull";
 	}
 
 }

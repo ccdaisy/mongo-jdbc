@@ -18,20 +18,52 @@
 
 package com.mongodb.jdbc;
 
-import java.io.*;
-import java.util.*;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.List;
 
-import net.sf.jsqlparser.expression.*;
-import net.sf.jsqlparser.expression.operators.relational.*;
-import net.sf.jsqlparser.schema.*;
-import net.sf.jsqlparser.parser.*;
-import net.sf.jsqlparser.statement.*;
-import net.sf.jsqlparser.statement.select.*;
-import net.sf.jsqlparser.statement.insert.*;
-import net.sf.jsqlparser.statement.update.*;
-import net.sf.jsqlparser.statement.drop.*;
+import net.sf.jsqlparser.expression.DoubleValue;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.JdbcParameter;
+import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
+import net.sf.jsqlparser.expression.Parenthesis;
+import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
+import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.ExistsExpression;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.InExpression;
+import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
+import net.sf.jsqlparser.expression.operators.relational.MinorThan;
+import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
+import net.sf.jsqlparser.parser.CCJSqlParserManager;
+import net.sf.jsqlparser.schema.Column;
+import net.sf.jsqlparser.schema.Table;
+import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.drop.Drop;
+import net.sf.jsqlparser.statement.insert.Insert;
+import net.sf.jsqlparser.statement.select.AllColumns;
+import net.sf.jsqlparser.statement.select.Limit;
+import net.sf.jsqlparser.statement.select.OrderByElement;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectExpressionItem;
+import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.update.Update;
 
-import com.mongodb.*;
+import com.mongodb.BasicDBObject;
+import com.mongodb.CommandResult;
+import com.mongodb.DB;
+import com.mongodb.DBCollection;
+import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
+import com.mongodb.QueryOperators;
 import com.mongodb.jdbc.function.update.AbstractUpdateFunctionHandler;
 import com.mongodb.jdbc.function.update.UpdateFunctionMap;
 
@@ -155,15 +187,19 @@ public class Executor {
 
         }
 
-        coll.insert( o );        
-        return 1; // TODO - this is wrong
+        coll.insert( o );   
+        CommandResult returnVal = _db.getLastError();
+        if(returnVal.ok()){
+        	return 1;
+        } else {
+        	return 0;
+        }
     }
 
     @SuppressWarnings("unchecked")
 	int update( Update up )
         throws MongoSQLException {
         
-        DBObject query = parseWhere( up.getWhere() );
         
         BasicDBObject mod = new BasicDBObject();
         for ( int i=0; i<up.getColumns().size(); i++ ){
@@ -194,12 +230,13 @@ public class Executor {
         }
 
 
+        DBObject query = parseWhere( up.getWhere() );
+        
         DBCollection coll = getCollection( up.getTable() );
         if( D ) System.out.println(mod);
         coll.update( query , mod, true, true);
         return 1; // TODO
     }
-
 
     int drop( Drop d ){
         DBCollection c = _db.getCollection( d.getName() );
@@ -237,19 +274,93 @@ public class Executor {
 
     DBObject parseWhere( Expression e ){
         BasicDBObject o = new BasicDBObject();
-        if ( e == null )
-            return o;
-        
-        if ( e instanceof EqualsTo ){
-            EqualsTo eq = (EqualsTo)e;
-            o.put( toFieldName( eq.getLeftExpression() ) , toConstant( eq.getRightExpression() ) );
-        }
-        else {
-            throw new UnsupportedOperationException( "can't handle: " + e.getClass() + " yet" );
-        }
-
+        this.fillDBObjectWithExpression(o, e);
+        if( D ) System.out.println(o);
         return o;
     }
+    
+    @SuppressWarnings("unchecked")
+	void fillDBObjectWithExpression(BasicDBObject o, Expression e){
+    	if(e instanceof AndExpression){
+    		fillDBObjectWithExpression(o, ((AndExpression) e).getLeftExpression());
+    		fillDBObjectWithExpression(o, ((AndExpression) e).getRightExpression());
+    	}else if(e instanceof EqualsTo){
+    		EqualsTo expression = (EqualsTo) e;
+    		String column = ((Column)expression.getLeftExpression()).getColumnName();
+    		Object value = toConstant(expression.getRightExpression());
+    		o.put(column, value);
+    	}else if(e instanceof NotEqualsTo){
+    		NotEqualsTo expression = (NotEqualsTo) e;
+    		String column = ((Column)expression.getLeftExpression()).getColumnName();
+    		Object value = toConstant(expression.getRightExpression());
+			this.internalPutDBObjet(o, column, QueryOperators.NE, value);
+    	}else if(e instanceof InExpression){
+    		InExpression expression = (InExpression) e;
+    		String column = ((Column)expression.getLeftExpression()).getColumnName();
+    		ArrayList valueList = (ArrayList) ((ExpressionList)expression.getItemsList())
+    		.getExpressions();
+    		Object[] value = new Object[valueList.size()];
+    		for (int i = 0; i < value.length; i++) {
+				value[i] = toConstant((Expression) valueList.get(i));
+			}
+    		if(expression.isNot()){
+    			this.internalPutDBObjet(o, column, QueryOperators.NIN, value);
+    		}else {
+    			this.internalPutDBObjet(o, column, QueryOperators.IN, value);
+    		}
+    	}else if(e instanceof GreaterThan){
+    		GreaterThan expression = (GreaterThan) e;
+    		String column = ((Column)expression.getLeftExpression()).getColumnName();
+    		Object value = toConstant(expression.getRightExpression());
+			this.internalPutDBObjet(o, column, QueryOperators.GT, value);
+    	}else if(e instanceof GreaterThanEquals){
+    		GreaterThanEquals expression = (GreaterThanEquals) e;
+    		String column = ((Column)expression.getLeftExpression()).getColumnName();
+    		Object value = toConstant(expression.getRightExpression());
+			this.internalPutDBObjet(o, column, QueryOperators.GTE, value);
+    	}else if(e instanceof MinorThan){
+    		MinorThan expression = (MinorThan) e;
+    		String column = ((Column)expression.getLeftExpression()).getColumnName();
+    		Object value = toConstant(expression.getRightExpression());
+			this.internalPutDBObjet(o, column, QueryOperators.LT, value);
+    	}else if(e instanceof MinorThanEquals){
+    		MinorThanEquals expression = (MinorThanEquals) e;
+    		String column = ((Column)expression.getLeftExpression()).getColumnName();
+    		Object value = toConstant(expression.getRightExpression());
+			this.internalPutDBObjet(o, column, QueryOperators.LTE, value);
+    	}else if(e instanceof Parenthesis){
+    		fillDBObjectWithExpression(o, ((Parenthesis) e).getExpression());
+    	}else if(e instanceof IsNullExpression){
+    		IsNullExpression expression = (IsNullExpression) e;
+    		String column = ((Column)expression.getLeftExpression()).getColumnName();
+    		if (expression.isNot()){
+        		this.internalPutDBObjet(o, column, QueryOperators.EXISTS, true);
+    		}else {
+        		this.internalPutDBObjet(o, column, QueryOperators.EXISTS, false);
+    		}
+    	}else if(e instanceof OrExpression){
+    		BasicDBObject[] orObjects = new BasicDBObject[2];
+    		orObjects[0] = new BasicDBObject();
+    		orObjects[1] = new BasicDBObject();
+    		fillDBObjectWithExpression(orObjects[0], ((OrExpression) e).getLeftExpression());
+    		fillDBObjectWithExpression(orObjects[1], ((OrExpression) e).getRightExpression());
+    		o.put("$or", orObjects);
+    	}else if(e instanceof ExistsExpression){
+            throw new UnsupportedOperationException( "can't handle: " + e.getClass() + " yet" );
+    	}
+    }
+    
+    void internalPutDBObjet(DBObject o, String columnName, String criteria, Object value){
+    	Object subObject = o.get(columnName);
+    	if(subObject == null){
+    		subObject = new BasicDBObject(criteria, value);
+    		o.put(columnName, subObject);
+    	}else if (subObject instanceof DBObject){
+    		((DBObject) subObject).put(criteria, value);
+    	}    	
+    }
+
+	
 
     Statement parse( String s )
         throws MongoSQLException {
@@ -275,6 +386,7 @@ public class Executor {
     final String _sql;
     final Statement _statement;
     
-    List _params;
+    @SuppressWarnings("unchecked")
+	List _params;
     int _pos;
 }

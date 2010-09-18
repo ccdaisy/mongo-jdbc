@@ -37,7 +37,7 @@ public class MongoDriver implements Driver {
         throws SQLException {
         if ( info != null && info.size() > 0 )
             throw new UnsupportedOperationException( "properties not supported yet" );
-
+        //try to add properties for our use
         if ( url.startsWith( PREFIX ) )
             url = url.substring( PREFIX.length() );
         if ( url.indexOf( "/" ) < 0 )

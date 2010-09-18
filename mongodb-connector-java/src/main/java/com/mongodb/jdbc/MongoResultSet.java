@@ -610,7 +610,7 @@ public class MongoResultSet implements ResultSet {
     public void updateNString(String columnLabel, String nString){ throw new UnsupportedOperationException(); }
 
     public boolean wasNull(){
-        throw new UnsupportedOperationException();
+        return false;
     }
 
     // column <-> int mapping

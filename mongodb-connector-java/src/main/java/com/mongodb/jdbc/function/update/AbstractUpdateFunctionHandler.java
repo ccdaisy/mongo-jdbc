@@ -16,7 +16,7 @@ public abstract class AbstractUpdateFunctionHandler {
 		if (criteria.startsWith("$")) {
 			Object subObject = object.get(criteria);
 			if (subObject != null && subObject instanceof DBObject) {
-				((DBObject) subObject).put(criteria, value);
+				((DBObject) subObject).put(column, value);
 			} else {
 				DBObject newCriteriaObject = new BasicDBObject(column, value);
 				object.put(criteria, newCriteriaObject);

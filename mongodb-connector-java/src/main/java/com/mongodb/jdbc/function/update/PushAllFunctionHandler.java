@@ -1,10 +1,11 @@
+//PushAllFunctionHandler.java
 package com.mongodb.jdbc.function.update;
 
 import java.util.List;
 
 import com.mongodb.DBObject;
 
-public class PullAllFunctionHandler extends AbstractUpdateFunctionHandler {
+public class PushAllFunctionHandler extends AbstractUpdateFunctionHandler {
 
 	@SuppressWarnings("unchecked")
 	@Override
@@ -16,7 +17,7 @@ public class PullAllFunctionHandler extends AbstractUpdateFunctionHandler {
 
 	@Override
 	public String getName() {
-		return "$pullAll";
+		return "$pushAll";
 	}
 
 }

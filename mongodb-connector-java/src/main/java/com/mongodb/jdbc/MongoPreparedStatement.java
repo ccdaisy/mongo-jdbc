@@ -63,11 +63,15 @@ public class MongoPreparedStatement extends MongoStatement implements PreparedSt
     	net.sf.jsqlparser.statement.Statement statement = this._exec._statement;
     	if(statement instanceof Insert || statement instanceof Update){
     		try {
-				this.executeUpdate();
+				int success = this.executeUpdate();
+				if(success==1){
+					return true;
+				} else {
+					return false;
+				}
 			} catch (SQLException e) {
 				e.printStackTrace();
-			} finally {
-				return true;
+				return false;
 			}
     	} else if (statement instanceof Select){
    			this.executeQuery();
@@ -79,7 +83,15 @@ public class MongoPreparedStatement extends MongoStatement implements PreparedSt
     }
     
     public ResultSet executeQuery(){
-        throw new RuntimeException( "executeQuery not done" );
+    	_exec.setParams(_params);
+    	DBCursor cursor = null;
+		try {
+			cursor = _exec.query();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+        _last = new MongoResultSet( cursor );
+    	return _last;
     }
     
     public int executeUpdate()
