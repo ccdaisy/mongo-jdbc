@@ -37,7 +37,7 @@ public class MongoPreparedStatement extends MongoStatement implements PreparedSt
         throws MongoSQLException {
         super( conn , type , concurrency , holdability );
         _sql = sql;
-        _exec = new Executor( conn._db , sql );
+        _exec = new Executor( conn.get_m() , sql );
     }
 
     public void addBatch(){

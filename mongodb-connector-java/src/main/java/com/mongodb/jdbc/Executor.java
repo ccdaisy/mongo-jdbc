@@ -46,7 +46,6 @@ import net.sf.jsqlparser.parser.CCJSqlParserManager;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
-import net.sf.jsqlparser.statement.drop.Drop;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
 import net.sf.jsqlparser.statement.select.Limit;
@@ -58,12 +57,12 @@ import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.update.Update;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.CommandResult;
-import com.mongodb.DB;
-import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
+import com.mongodb.Mongo;
 import com.mongodb.QueryOperators;
+import com.mongodb.WriteConcern;
+import com.mongodb.WriteResult;
 import com.mongodb.jdbc.function.update.AbstractUpdateFunctionHandler;
 import com.mongodb.jdbc.function.update.UpdateFunctionMap;
 
@@ -71,9 +70,9 @@ public class Executor {
 
     static final boolean D = true;
 
-    Executor( DB db , String sql )
+    Executor( Mongo m , String sql )
         throws MongoSQLException {
-        _db = db;
+        _m = m;
         _sql = sql;
         _statement = parse( sql );
 
@@ -100,8 +99,26 @@ public class Executor {
         if ( ! ( ps.getFromItem() instanceof Table ) )
             throw new UnsupportedOperationException( "can only handle regular tables" );
         
-        DBCollection coll = getCollection( (Table)ps.getFromItem() );
-
+//        Table fromTable = (Table) ps.getFromItem();
+//        String[] names = StringUtils.splitAtFirst(fromTable.toString(), ".");
+//        
+//        DB db = this.getDB(names[0]);
+//        DBCollection coll = db.getCollection(names[1]);
+        
+        Table fromTable = (Table) ps.getFromItem();
+        String tableName = fromTable.toString();
+        String dbName = _m.options.database;
+        String namespace;
+        if (dbName.equals("")){
+        	namespace = tableName;
+        } else {
+        	namespace = new StringBuilder()
+        	.append(dbName)
+        	.append('.')
+        	.append(tableName)
+        	.toString();
+        }
+        
         BasicDBObject fields = new BasicDBObject();
         for ( Object o : ps.getSelectItems() ){
             SelectItem si = (SelectItem)o;
@@ -123,10 +140,10 @@ public class Executor {
         DBObject query = parseWhere( ps.getWhere() );
         
         // done with basics, build DBCursor
-        if ( D ) System.out.println( "\t" + "table: " + coll );
+        if ( D ) System.out.println( "\t" + "namespace: " + namespace );
         if ( D ) System.out.println( "\t" + "fields: " + fields );
         if ( D ) System.out.println( "\t" + "query : " + query );
-        DBCursor c = coll.find( query , fields );
+        DBCursor c = _m.find(namespace, query , fields );
         
 		// limit
 		Limit limit = ps.getLimit();
@@ -157,8 +174,8 @@ public class Executor {
             return insert( (Insert)_statement );
         else if ( _statement instanceof Update )
             return update( (Update)_statement );
-        else if ( _statement instanceof Drop )
-            return drop( (Drop)_statement );
+//        else if ( _statement instanceof Drop )
+//            return drop( (Drop)_statement );
 
         throw new RuntimeException( "unknown write: " + _statement.getClass() );
     }
@@ -170,8 +187,21 @@ public class Executor {
         if ( in.getColumns() == null )
             throw new MongoSQLException.BadSQL( "have to give column names to insert" );
         
-        DBCollection coll = getCollection( in.getTable() );
-        if ( D ) System.out.println( "\t" + "table: " + coll );
+        Table fromTable = (Table) in.getTable();
+        String tableName = fromTable.toString();
+        String dbName = _m.options.database;
+        String namespace;
+        if (dbName.equals("")){
+        	namespace = tableName;
+        } else {
+        	namespace = new StringBuilder()
+        	.append(dbName)
+        	.append('.')
+        	.append(tableName)
+        	.toString();
+        }
+        
+        if ( D ) System.out.println( "\t" + "namespace: " + namespace );
         
         if ( ! ( in.getItemsList() instanceof ExpressionList ) )
             throw new UnsupportedOperationException( "need ExpressionList" );
@@ -187,13 +217,9 @@ public class Executor {
 
         }
 
-        coll.insert( o );   
-        CommandResult returnVal = _db.getLastError();
-        if(returnVal.ok()){
-        	return 1;
-        } else {
-        	return 0;
-        }
+        WriteResult result = _m.insert(namespace, new BasicDBObject[]{o},
+        		new WriteConcern(1, _m.options.writeWaitTime) );   
+        return result.getN();
     }
 
     @SuppressWarnings("unchecked")
@@ -232,17 +258,33 @@ public class Executor {
 
         DBObject query = parseWhere( up.getWhere() );
         
-        DBCollection coll = getCollection( up.getTable() );
+        Table fromTable = (Table) up.getTable();
+        String tableName = fromTable.toString();
+        String dbName = _m.options.database;
+        String namespace;
+        if (dbName.equals("")){
+        	namespace = tableName;
+        } else {
+        	namespace = new StringBuilder()
+        	.append(dbName)
+        	.append('.')
+        	.append(tableName)
+        	.toString();
+        }
+        
         if( D ) System.out.println(mod);
-        coll.update( query , mod, true, true);
-        return 1; // TODO
+        WriteResult result = _m.update(namespace, query, mod, _m.options.upsert,
+        		_m.options.multiUpdate, new WriteConcern(1, _m.options.writeWaitTime));
+        return result.getN();
     }
 
-    int drop( Drop d ){
-        DBCollection c = _db.getCollection( d.getName() );
-        c.drop();
-        return 1;
-    }
+//    int drop( Drop d ){
+//    	String[] names = StringUtils.splitAtFirst(d.getName(), ".");
+//    	DB db = this.getDB(names[0]);
+//    	DBCollection coll = db.getCollection(names[1]);
+//    	coll.drop();
+//    	return 1;
+//    }
 
     // ---- helpers -----
 
@@ -377,12 +419,9 @@ public class Executor {
     }
 
     // ----
-    
-    DBCollection getCollection( Table t ){
-        return _db.getCollection( t.toString() );
-    }
 
-    final DB _db;
+
+    final Mongo _m;
     final String _sql;
     final Statement _statement;
     

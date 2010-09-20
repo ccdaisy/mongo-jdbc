@@ -45,7 +45,7 @@ public class blog {
 		psUpdate.executeUpdate();
 		ps.close();
 		
-		System.out.println(mc.getCollection("blogposts").find().toArray());
+//		System.out.println(mc.getCollection("blogposts").find().toArray());
 
 		print("num should be 1 ", st
 				.executeQuery("select * from blogposts where tags='fun'"));

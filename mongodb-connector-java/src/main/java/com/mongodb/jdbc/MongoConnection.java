@@ -25,9 +25,9 @@ import com.mongodb.*;
 
 public class MongoConnection implements Connection {
 
-    public MongoConnection( DB db ){
-        _db = db;
-    }
+	public MongoConnection() {
+		
+	}
 
     public SQLWarning getWarnings(){
         throw new RuntimeException( "should do get last error" );
@@ -41,11 +41,12 @@ public class MongoConnection implements Connection {
     // ---- state -----
     
     public void close(){
-        _db = null;
+    	_m.close();
+    	this.closed = true;
     }
 
     public boolean isClosed(){
-        return _db == null;
+    	return this.closed;
     }
 
     // --- commit ----
@@ -132,23 +133,26 @@ public class MongoConnection implements Connection {
     }
 
 
+    @Override
     public int getHoldability(){
         return ResultSet.HOLD_CURSORS_OVER_COMMIT;
     }
+    @Override
     public void setHoldability(int holdability){
     }
-
-    public int getTransactionIsolation(){
-        throw new RuntimeException( "not dont yet" );
-    }
     
+    @Override
+    public int getTransactionIsolation(){
+        return Connection.TRANSACTION_NONE;
+    }
+    @Override
     public DatabaseMetaData getMetaData(){
     	return new MongoDatabaseMetaData();
 //        throw new RuntimeException( "not dont yet" );
     }
-
+    @Override
     public boolean isValid(int timeout){
-        return _db != null;
+        return _m != null;
     }
 
     public boolean isReadOnly(){
@@ -232,15 +236,18 @@ public class MongoConnection implements Connection {
         throws SQLException {
         throw new UnsupportedOperationException();
     }
-
-    public DB getDB(){
-        return _db;
-    }
-
-    public DBCollection getCollection( String name ){
-        return _db.getCollection( name );
-    }
     
-    DB _db;
-    Properties _clientInfo;
+    
+	public Mongo get_m() {
+		return _m;
+	}
+
+	public void set_m(Mongo m) {
+		_m = m;
+	}
+
+
+    private Mongo _m;
+    private Properties _clientInfo;
+    private boolean closed = false;
 }
