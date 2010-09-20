@@ -25,12 +25,18 @@ import java.sql.Date;
 import java.util.*;
 import java.net.*;
 
+import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.update.Update;
 
 import com.mongodb.*;
 
+/**
+ * Support prepare statement. Support mybatis.
+ * @author ccdaisy
+ * @since 2010-09-20
+ */
 public class MongoPreparedStatement extends MongoStatement implements PreparedStatement {
 
     MongoPreparedStatement( MongoConnection conn , int type, int concurrency, int holdability , String sql )
@@ -61,7 +67,8 @@ public class MongoPreparedStatement extends MongoStatement implements PreparedSt
     
     public boolean execute(){
     	net.sf.jsqlparser.statement.Statement statement = this._exec._statement;
-    	if(statement instanceof Insert || statement instanceof Update){
+    	if(statement instanceof Insert || statement instanceof Update 
+    			|| statement instanceof Delete){
     		try {
 				int success = this.executeUpdate();
 				if(success==1){
@@ -79,7 +86,6 @@ public class MongoPreparedStatement extends MongoStatement implements PreparedSt
     	} else {
     		return true;
     	}
-//        throw new RuntimeException( "execute not done" );
     }
     
     public ResultSet executeQuery(){

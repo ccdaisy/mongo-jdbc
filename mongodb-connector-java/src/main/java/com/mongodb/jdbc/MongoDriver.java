@@ -18,6 +18,7 @@
 
 package com.mongodb.jdbc;
 
+import java.net.InetAddress;
 import java.sql.*;
 import java.util.*;
 import com.mongodb.*;
@@ -25,13 +26,14 @@ import com.mongodb.utils.StringUtils;
 
 public class MongoDriver implements Driver {
 
-    static final String PREFIX = "mongodb://";
+    static final String MONGO_PREFIX = "mongodb://";
+    static final String JDBC_PREFIX = "jdbc:";
 
     public MongoDriver(){
     }
 
     public boolean acceptsURL(String url){
-        return url.startsWith( PREFIX );
+        return url.startsWith( MONGO_PREFIX );
     }
     
     public Connection connect(String url, Properties info)
@@ -43,6 +45,8 @@ public class MongoDriver implements Driver {
     	Integer socketTimeout = 0;
     	Integer writeWaitTime = 0;
     	String database = "";
+    	String host = "localhost";
+    	Integer port = 27017;
     	
         if ( info != null && info.size() > 0 ){
         	upsert = Boolean.valueOf(info.getProperty("upsert","true"));
@@ -52,13 +56,24 @@ public class MongoDriver implements Driver {
         	socketTimeout = Integer.valueOf(info.getProperty("socketTimeout","0"));
         	writeWaitTime = Integer.valueOf(info.getProperty("writeWaitTime","0"));
         }
-        if ( url.startsWith( PREFIX ) )
-            url = url.substring( PREFIX.length() );
-        if ( url.indexOf("/") >= 0) {
-        	database = StringUtils.splitAtLast(url, "/")[1];
+        if ( url.startsWith( JDBC_PREFIX ))
+        	url = url.substring( JDBC_PREFIX.length() );
+        if ( url.startsWith( MONGO_PREFIX ) )
+            url = url.substring( MONGO_PREFIX.length() );
+        if ( url.indexOf('/') >= 0) {
+        	String[] names = url.split("/");
+        	database = names[1];
+        	url = names[0];
         }
+        if ( url.indexOf(':') >= 0) {
+        	String[] names = url.split(":");
+        	host = names[0];
+        	port = Integer.valueOf(names[1]);
+        }
+        
         try {
-            DBAddress addr = new DBAddress( url );
+        	ServerAddress addr = new ServerAddress(host, port);
+ //           DBAddress addr = new DBAddress( url );
             MongoOptions options = new MongoOptions();
             options.upsert = upsert;
             options.multiUpdate = multiUpdate;

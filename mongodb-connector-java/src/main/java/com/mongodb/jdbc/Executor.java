@@ -46,6 +46,7 @@ import net.sf.jsqlparser.parser.CCJSqlParserManager;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
 import net.sf.jsqlparser.statement.select.Limit;
@@ -174,6 +175,9 @@ public class Executor {
             return insert( (Insert)_statement );
         else if ( _statement instanceof Update )
             return update( (Update)_statement );
+        else if ( _statement instanceof Delete){
+        	return delete( (Delete)_statement );
+        }
 //        else if ( _statement instanceof Drop )
 //            return drop( (Drop)_statement );
 
@@ -218,8 +222,12 @@ public class Executor {
         }
 
         WriteResult result = _m.insert(namespace, new BasicDBObject[]{o},
-        		new WriteConcern(1, _m.options.writeWaitTime) );   
-        return result.getN();
+        		new WriteConcern(1, _m.options.writeWaitTime) );
+        if ( result.getLastError().ok() ){
+        	return 1;
+        } else {
+        	return 0;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -275,7 +283,42 @@ public class Executor {
         if( D ) System.out.println(mod);
         WriteResult result = _m.update(namespace, query, mod, _m.options.upsert,
         		_m.options.multiUpdate, new WriteConcern(1, _m.options.writeWaitTime));
-        return result.getN();
+        if ( result.getLastError().ok() ){
+        	return 1;
+        } else {
+        	return 0;
+        }
+    }
+
+    int delete( Delete de )
+        throws MongoSQLException {
+
+        DBObject query = parseWhere( de.getWhere() );
+    	
+        Table fromTable = (Table) de.getTable();
+        String tableName = fromTable.toString();
+        String dbName = _m.options.database;
+        String namespace;
+        if (dbName.equals("")){
+        	namespace = tableName;
+        } else {
+        	namespace = new StringBuilder()
+        	.append(dbName)
+        	.append('.')
+        	.append(tableName)
+        	.toString();
+        }
+        
+        if ( D ) System.out.println( "\t" + "namespace: " + namespace );
+        
+        
+        WriteResult result = _m.remove(namespace, query,
+        		new WriteConcern(1, _m.options.writeWaitTime));
+        if ( result.getLastError().ok() ){
+        	return 1;
+        } else {
+        	return 0;
+        }
     }
 
 //    int drop( Drop d ){
@@ -407,14 +450,21 @@ public class Executor {
     Statement parse( String s )
         throws MongoSQLException {
         s = s.trim();
-        
-        try {
-            return (new CCJSqlParserManager()).parse( new StringReader( s ) );
+        s = s.toLowerCase();
+        Integer hash = s.hashCode();
+        Statement statement = MongoSQLCache.getStatement(hash);
+        if( statement == null){
+        	try {
+                statement =  (new CCJSqlParserManager()).parse( new StringReader( s ) );
+            }
+            catch ( Exception e ){
+                e.printStackTrace();
+                throw new MongoSQLException.BadSQL( s );
+            }
+            
+        	MongoSQLCache.putStatement(hash, statement);
         }
-        catch ( Exception e ){
-            e.printStackTrace();
-            throw new MongoSQLException.BadSQL( s );
-        }
+        return statement;
         
     }
 
